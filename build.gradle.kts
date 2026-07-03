@@ -1,5 +1,6 @@
 plugins {
     `kotlin-dsl`
+    id("com.gradle.plugin-publish") version "2.1.1"
 }
 
 group = "com.moltenbits"
@@ -23,6 +24,9 @@ configurations[functionalTestSourceSet.runtimeOnlyConfigurationName]
     .extendsFrom(configurations.testRuntimeOnly.get())
 
 gradlePlugin {
+    website = "https://github.com/moltenbits/gradle-envoy"
+    vcsUrl = "https://github.com/moltenbits/gradle-envoy.git"
+
     // Wire the functional source set so it gets the plugin-under-test classpath and metadata.
     testSourceSets(functionalTestSourceSet)
 
@@ -34,6 +38,10 @@ gradlePlugin {
             description = "Loads .env, resolves op:// references via the 1Password CLI, and " +
                 "auto-injects them into Test/JavaExec/run/bootRun — so secrets work from " +
                 "IntelliJ, not just a direnv shell."
+            tags = listOf(
+                "dotenv", "env", "envrc", "1password", "secrets", "direnv",
+                "configuration-cache", "settings-plugin",
+            )
         }
     }
 }
