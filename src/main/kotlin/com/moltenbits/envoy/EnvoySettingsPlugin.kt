@@ -36,8 +36,11 @@ class EnvoySettingsPlugin : Plugin<Settings> {
             strict.convention(false)
         }
 
-        // Gradle's kotlin-dsl treats Action/IsolatedAction as SAM-with-receiver, so `this` is the argument.
-        val service: Provider<EnvoySecretService> = settings.gradle.sharedServices.registerIfAbsent(
+        // Register the build service (config is captured into its non-secret Params). The returned provider
+        // is intentionally NOT held: the isolated beforeProject action serializes whatever it captures, and a
+        // build-service provider may not be captured there. Gradle's kotlin-dsl treats Action as
+        // SAM-with-receiver, so `this` is the argument.
+        settings.gradle.sharedServices.registerIfAbsent(
             SERVICE_NAME,
             EnvoySecretService::class.java,
         ) {
@@ -49,8 +52,8 @@ class EnvoySettingsPlugin : Plugin<Settings> {
             parameters.strict.set(extension.strict)
         }
 
-        // Capture only Providers (never the extension object) so the isolated beforeProject action stays
-        // configuration-cache / isolated-projects clean.
+        // Capture only plain value Providers; look the service up by name *inside* the action (at run time,
+        // not as a serialized field), so the provider only reaches task state where the config cache supports it.
         val enabled: Provider<Boolean> = extension.enabled
         val overrideExisting: Provider<Boolean> = extension.overrideTaskEnvironment
 
@@ -58,10 +61,15 @@ class EnvoySettingsPlugin : Plugin<Settings> {
             // this: Project
             if (!enabled.get()) return@beforeProject
 
+            @Suppress("UNCHECKED_CAST")
+            val svc = gradle.sharedServices.registrations
+                .getByName(SERVICE_NAME).service as Provider<EnvoySecretService>
+            val override = overrideExisting.get()
+
             val wire = Action<Task> {
                 // this: Task
-                usesService(service)
-                doFirst(InjectEnvAction(service, overrideExisting.get()))
+                usesService(svc)
+                doFirst(InjectEnvAction(svc, override))
             }
             // withType(...).configureEach is a live view, so tasks registered later by the java/application/
             // spring-boot plugins (test, run, bootRun) are still wired.
