@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Assumptions.assumeFalse
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.io.File
 
 class EnvoyPluginFunctionalTest {
@@ -105,6 +107,26 @@ class EnvoyPluginFunctionalTest {
             result.output.contains("ENVOY_IT_PLAIN=hello"),
             "literal .env value should reach the forked JVM:\n${result.output}",
         )
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["8.8", "9.6.1"])
+    fun `injects on the minimum and current supported Gradle versions`(gradleVersion: String) {
+        writeConsumer(projectDir, writeFakeOp("sk-cross-version"))
+
+        val result = GradleRunner.create()
+            .withProjectDir(projectDir)
+            .withPluginClasspath()
+            .withGradleVersion(gradleVersion)
+            .withArguments("probe", "--stacktrace")
+            .forwardOutput()
+            .build()
+
+        assertTrue(
+            result.output.contains("ENVOY_IT_SECRET=sk-cross-version"),
+            "secret should reach the JVM on Gradle $gradleVersion:\n${result.output}",
+        )
+        assertTrue(result.output.contains("ENVOY_IT_PLAIN=hello"), result.output)
     }
 
     @Test

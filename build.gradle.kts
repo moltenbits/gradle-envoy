@@ -46,12 +46,17 @@ dependencies {
     "functionalTestImplementation"(gradleTestKit())
 }
 
-val functionalTest by tasks.registering(Test::class) {
+val functionalTest = tasks.register<Test>("functionalTest") {
     description = "Runs the Gradle TestKit functional tests."
     group = "verification"
     testClassesDirs = functionalTestSourceSet.output.classesDirs
     classpath = functionalTestSourceSet.runtimeClasspath
     useJUnitPlatform()
+    // Fork the nested TestKit builds on a JDK the min-supported Gradle (8.8) can run on — Gradle 8.x does
+    // not support JDK 25, so the daemon JDK would otherwise make the 8.8 compatibility test impossible.
+    javaLauncher.set(
+        javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) },
+    )
 }
 
 tasks.named<Test>("test") {
