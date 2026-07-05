@@ -1,0 +1,10 @@
+plugins {
+    id 'application'
+}
+
+application {
+    mainClass = 'com.example.App'
+}
+
+// This build never wires `environment(...)` into `run` — gradle-envoy injects the
+// .env values (and resolved op:// secrets) automatically.

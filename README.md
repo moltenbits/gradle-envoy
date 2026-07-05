@@ -51,6 +51,16 @@ envoy {
 }
 ```
 
+## Examples
+
+Runnable Kotlin- and Groovy-DSL consumer projects live in [`examples/`](examples). They apply the plugin from
+source and show a resolved `op://` secret reaching a forked `run`/`test` JVM with **no per-task wiring**, and
+run hermetically against a bundled fake `op`:
+
+```bash
+ENVOY_EXAMPLE_OP="$PWD/examples/fake-op" ./gradlew -p examples/kotlin-app run
+```
+
 ## How it works
 
 1. **Discovery** — finds the nearest `.env` by walking up from the build root (like `direnv`), so a single
