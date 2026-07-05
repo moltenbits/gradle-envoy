@@ -60,11 +60,8 @@ val functionalTest = tasks.register<Test>("functionalTest") {
     testClassesDirs = functionalTestSourceSet.output.classesDirs
     classpath = functionalTestSourceSet.runtimeClasspath
     useJUnitPlatform()
-    // Fork the nested TestKit builds on a JDK the min-supported Gradle (8.8) can run on — Gradle 8.x does
-    // not support JDK 25, so the daemon JDK would otherwise make the 8.8 compatibility test impossible.
-    javaLauncher.set(
-        javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) },
-    )
+    // Nested TestKit builds fork on the daemon JVM, which this repo pins to JDK 21 via
+    // gradle/gradle-daemon-jvm.properties — old enough to run the Gradle 8.8 compatibility test.
 }
 
 tasks.named<Test>("test") {

@@ -124,6 +124,10 @@ envoy {
 
 ## Building & testing
 
+This repo pins the Gradle **daemon JVM to JDK 21** (`gradle/gradle-daemon-jvm.properties`), so building it
+requires a JDK 21 installation discoverable by Gradle. (The plugin itself still compiles to **Java 17**
+bytecode for broad consumer reach — that's independent of the JDK that runs Gradle.)
+
 ```bash
 ./gradlew check              # unit tests + TestKit functional tests
 ./gradlew publishToMavenLocal
