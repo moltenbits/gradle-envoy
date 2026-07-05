@@ -9,6 +9,8 @@ pluginManagement {
 plugins {
     // No version: the plugin is supplied by the included build above.
     id("com.moltenbits.envoy")
+    // Auto-downloads the Java 21 toolchain (see build.gradle.kts) if it isn't already installed.
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
 dependencyResolutionManagement {
