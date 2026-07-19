@@ -29,3 +29,6 @@ gradle-app.setting
 examples/*/gradlew
 examples/*/gradlew.bat
 examples/*/gradle/
+
+/.env
+
