@@ -1,5 +1,6 @@
 plugins {
     `kotlin-dsl`
+    groovy
     id("com.gradle.plugin-publish") version "2.1.1"
 }
 
@@ -13,6 +14,24 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
+}
+
+// gradleApi() ships the distribution's Groovy 4 as file dependencies, which bypass version
+// resolution and precede declared modules on the classpath. Two consequences, two fixes:
+// GroovyCompile would infer the Groovy 4 compiler (Spock's groovy-5.0 variant refuses it), and
+// the test JVM would load the Groovy 4 runtime ahead of the declared Groovy 5
+// (GroovyRuntimeSpec guards that). This configuration isolates Groovy 5 for both.
+val groovy5 = configurations.create("groovy5") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
+tasks.withType<GroovyCompile>().configureEach {
+    groovyClasspath = groovy5
+}
+
+tasks.withType<Test>().configureEach {
+    classpath = groovy5 + classpath
 }
 
 // Dedicated source set for Gradle TestKit functional tests, kept apart from fast unit tests.
@@ -46,9 +65,20 @@ gradlePlugin {
     }
 }
 
+val groovyVersion = "5.0.7"
+
 dependencies {
-    testImplementation(platform("org.junit:junit-bom:5.11.4"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
+    // The same version in both places: testImplementation is what the specs compile and run
+    // against; groovy5 is the compiler handed to GroovyCompile above. Diverging them would mean
+    // compiling with one Groovy and running on another.
+    testImplementation("org.apache.groovy:groovy:$groovyVersion")
+    groovy5("org.apache.groovy:groovy:$groovyVersion")
+
+    testImplementation("org.spockframework:spock-core:2.4-groovy-5.0")
+
+    // Spock is the engine; Gradle 9 additionally requires the JUnit Platform launcher on the test
+    // runtime classpath. The BOM version is the one Spock 2.4 imports, so they cannot drift.
+    testRuntimeOnly(platform("org.junit:junit-bom:5.14.1"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     "functionalTestImplementation"(gradleTestKit())
