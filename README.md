@@ -136,6 +136,19 @@ broad consumer reach — independent of the JDK that runs Gradle.)
 
 The functional tests use a fake `op` script, so they need no live 1Password session.
 
+Beyond the plugin's own tests, the [example projects](examples) double as consumer-perspective
+regression tests — they apply the plugin from source and assert that values actually arrive in a
+forked JVM:
+
+```bash
+ENVOY_EXAMPLE_OP="$PWD/examples/fake-op" ./examples/verify.sh   # hermetic, no vault needed
+./examples/verify.sh                                            # live, against a real vault
+```
+
+[CI](.github/workflows/ci.yml) runs the plugin tests on Linux and macOS, the hermetic example
+verification on every PR (including from forks, which never receive secrets), and the live
+1Password verification on branches that can access the repository's secrets.
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).

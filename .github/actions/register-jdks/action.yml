@@ -1,0 +1,31 @@
+name: Register JDKs with Gradle
+description: >-
+  Record the JDKs installed by setup-java in the user-level gradle.properties so Gradle's toolchain
+  resolution finds them without downloading anything.
+
+inputs:
+  jdk17-path:
+    description: Filesystem path of the JDK 17 installation (setup-java's `path` output).
+    required: true
+  jdk21-path:
+    description: Filesystem path of the JDK 21 installation (setup-java's `path` output).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Written to the user-level gradle.properties rather than passed as -D/-P on the command line,
+    # because examples/verify.sh invokes ./gradlew itself — flags on an outer command would not
+    # reach those nested builds. GRADLE_OPTS is NOT a workable substitute here: Gradle silently
+    # ignores org.gradle.java.installations.* when supplied that way.
+    #
+    # Without this, Gradle finds only JAVA_HOME (JDK 21) and falls back to the Foojay resolver to
+    # provision JDK 17 for the plugin's toolchain — a ~200 MB download on every run.
+    - shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p ~/.gradle
+        printf 'org.gradle.java.installations.paths=%s,%s\n' \
+          '${{ inputs.jdk17-path }}' '${{ inputs.jdk21-path }}' >> ~/.gradle/gradle.properties
+        echo "Registered toolchains:"
+        grep 'installations.paths' ~/.gradle/gradle.properties
