@@ -6,10 +6,33 @@ a manual smoke test.
 
 | Example | DSL | Demonstrates |
 | --- | --- | --- |
-| [`kotlin-app`](kotlin-app) | Kotlin | Injection into `run` (JavaExec) **and** `test` (Test) |
+| [`kotlin-app`](kotlin-app) | Kotlin | Injection into `run` (JavaExec) **and** `test` (Test), asserted by a Spock spec |
 | [`groovy-app`](groovy-app) | Groovy | The `envoy { }` extension from a Groovy build, injection into `run` |
 
 Neither build wires `environment(...)` into any task — gradle-envoy does it automatically.
+
+## Verifying them (what CI runs)
+
+[`verify.sh`](verify.sh) drives both examples and asserts the results, so the examples are a
+regression test rather than just a demo. It runs in two modes, selected by whether
+`ENVOY_EXAMPLE_OP` is set:
+
+```bash
+# hermetic — no vault needed; the fake CLI returns a fixed value, asserted exactly
+ENVOY_EXAMPLE_OP="$PWD/examples/fake-op" ./examples/verify.sh
+
+# live — the real `op` on PATH resolves against a real vault
+./examples/verify.sh
+```
+
+Both modes assert an exact value: `example-resolved-secret` from the fake CLI, `envoy_cred` from
+the `Envoy` test vault, which holds only dummy values.
+[`AppSpec`](kotlin-app/src/test/groovy/com/example/AppSpec.groovy) additionally asserts from
+inside the forked test JVM that the reference was resolved rather than passed through verbatim —
+a check that holds in either mode.
+
+Live mode needs `op` authenticated: the desktop app integration locally, or
+`OP_SERVICE_ACCOUNT_TOKEN` in CI.
 
 ## Run them (hermetic, no 1Password vault needed)
 
