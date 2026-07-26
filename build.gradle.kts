@@ -1,3 +1,5 @@
+import org.gradle.plugin.compatibility.compatibility
+
 plugins {
     `kotlin-dsl`
     groovy
@@ -61,6 +63,13 @@ gradlePlugin {
                 "dotenv", "env", "envrc", "1password", "secrets", "direnv",
                 "configuration-cache", "settings-plugin",
             )
+            // Backed by EnvoyPluginFunctionalSpec: CC reuse works and the resolved
+            // secret is never serialized into the cache.
+            compatibility {
+                features {
+                    configurationCache.set(true)
+                }
+            }
         }
     }
 }
