@@ -65,6 +65,10 @@ publishing {
             description = "Loads .env, resolves op:// references via the 1Password CLI, and " +
                 "auto-injects them into the JVMs Gradle forks."
             url = "https://github.com/moltenbits/gradle-envoy"
+            organization {
+                name = "MoltenBits"
+                url = "https://moltenbits.com"
+            }
             licenses {
                 license {
                     name = "Apache-2.0"
@@ -75,6 +79,8 @@ publishing {
                 developer {
                     id = "jamesdh"
                     name = "James Hardwick"
+                    organization = "MoltenBits"
+                    organizationUrl = "https://moltenbits.com"
                 }
             }
             scm {
