@@ -1,0 +1,7 @@
+#!/bin/sh
+# A fake 1Password CLI for running the examples without a real vault.
+#
+# It ignores the reference and prints a fixed value, mimicking `op read <op://...>`.
+# Wire it in by setting ENVOY_EXAMPLE_OP to this file's path (see examples/README.md);
+# by default the examples use the real `op`/`op-fast` on your PATH.
+printf 'example-resolved-secret'
