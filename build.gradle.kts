@@ -56,6 +56,36 @@ gradlePlugin {
     }
 }
 
+// The Portal page is fed from the gradlePlugin block above, but the published POMs would
+// otherwise carry only coordinates — no license, developer, or SCM info for auditors.
+publishing {
+    publications.withType<MavenPublication>().configureEach {
+        pom {
+            name = "gradle-envoy"
+            description = "Loads .env, resolves op:// references via the 1Password CLI, and " +
+                "auto-injects them into the JVMs Gradle forks."
+            url = "https://github.com/moltenbits/gradle-envoy"
+            licenses {
+                license {
+                    name = "Apache-2.0"
+                    url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            }
+            developers {
+                developer {
+                    id = "jamesdh"
+                    name = "James Hardwick"
+                }
+            }
+            scm {
+                connection = "scm:git:https://github.com/moltenbits/gradle-envoy.git"
+                developerConnection = "scm:git:git@github.com:moltenbits/gradle-envoy.git"
+                url = "https://github.com/moltenbits/gradle-envoy"
+            }
+        }
+    }
+}
+
 dependencies {
     // The groovy-4.0 Spock variant matches the Groovy that gradleApi() already provides from the
     // Gradle distribution, so no compiler or classpath overrides are needed.
