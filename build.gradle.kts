@@ -60,7 +60,7 @@ gradlePlugin {
                 "auto-injects them into Test/JavaExec/run/bootRun — so secrets work from " +
                 "IntelliJ, not just a direnv shell."
             tags = listOf(
-                "dotenv", "env", "envrc", "1password", "secrets", "direnv",
+                "dotenv", "env", "envrc", "1password", "op", "secrets", "direnv",
                 "configuration-cache", "settings-plugin",
             )
             // Backed by EnvoyPluginFunctionalSpec: CC reuse works and the resolved
