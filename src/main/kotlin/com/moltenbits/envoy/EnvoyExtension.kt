@@ -2,10 +2,10 @@ package com.moltenbits.envoy
 
 import com.moltenbits.envoy.resolver.OnePasswordResolver
 import org.gradle.api.Action
-import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
+import java.io.File
 
 /**
  * Configuration for the Envoy plugin, applied in `settings.gradle.kts`:
@@ -26,12 +26,17 @@ abstract class EnvoyExtension {
     abstract val enabled: Property<Boolean>
 
     /**
-     * Explicit `.env` file. When set, it is used directly and parent-directory search is skipped.
-     * When unset (default), the nearest `.env` is found by walking up from the build root.
+     * Additional env files layered into the discovered `.env` chain, earlier entries taking
+     * precedence over later ones. For duplicate keys they rank below the build directory's own
+     * `.env` and above files discovered in parent directories. A missing entry is skipped with
+     * a warning. Default: empty.
      */
-    abstract val envFile: RegularFileProperty
+    abstract val envFiles: ListProperty<File>
 
-    /** Walk up parent directories to find the nearest `.env` (direnv-style). Default: `true`. */
+    /**
+     * Walk up parent directories, merging every `.env` found (direnv-style; nearer files win
+     * duplicate keys). Default: `true`.
+     */
     abstract val searchParentDirectories: Property<Boolean>
 
     /** 1Password CLI executable. Default: `op`. Set to `op-fast` for a Keychain-cached, offline wrapper. */

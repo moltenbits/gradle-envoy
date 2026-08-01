@@ -129,6 +129,68 @@ class EnvoyPluginFunctionalSpec extends Specification {
         result.output.contains('ENVOY_IT_PLAIN=hello')
     }
 
+    def "merges every .env up the directory chain, the nearer file winning duplicate keys"() {
+        given: 'a workspace .env two levels up and a project .env overriding one of its keys'
+        def build = new File(projectDir, 'workspace/project')
+        writeConsumer(build, writeFakeOp('sk-chain'), false, new File(projectDir, 'workspace'))
+        new File(build, '.env').text = 'ENVOY_IT_PLAIN=from-project\n'
+
+        when:
+        def result = runnerIn(build, 'probe').build()
+
+        then: 'the project-local value wins the duplicate key'
+        result.output.contains('ENVOY_IT_PLAIN=from-project')
+
+        and: 'keys unique to the parent file are still injected'
+        result.output.contains('ENVOY_IT_SECRET=sk-chain')
+    }
+
+    def "layers envFiles below the local .env and above parent-directory files"() {
+        given: 'three layers each claiming ENVOY_IT_LAYER, plus a missing envFiles entry'
+        def workspace = new File(projectDir, 'workspace')
+        def build = new File(workspace, 'project')
+        new File(build, 'src/main/java').mkdirs()
+        new File(workspace, '.env').text =
+                'ENVOY_IT_LAYER=parent\nENVOY_IT_BOTH=parent\nENVOY_IT_PARENT_ONLY=from-parent\n'
+        new File(build, '.env').text = 'ENVOY_IT_LAYER=local\n'
+        new File(build, '.env.template').text =
+                'ENVOY_IT_LAYER=template\nENVOY_IT_BOTH=template\nENVOY_IT_TEMPLATE_ONLY=from-template\n'
+        new File(build, 'settings.gradle.kts').text = '''\
+            |plugins { id("com.moltenbits.envoy") }
+            |rootProject.name = "consumer"
+            |envoy {
+            |    envFiles.set(listOf(File(settingsDir, "missing.env"), File(settingsDir, ".env.template")))
+            |}
+            |'''.stripMargin()
+        new File(build, 'build.gradle.kts').text = PROBE_BUILD
+        new File(build, 'src/main/java/Probe.java').text = '''\
+            public class Probe {
+                public static void main(String[] args) {
+                    System.out.println("ENVOY_IT_LAYER=" + System.getenv("ENVOY_IT_LAYER"));
+                    System.out.println("ENVOY_IT_BOTH=" + System.getenv("ENVOY_IT_BOTH"));
+                    System.out.println("ENVOY_IT_PARENT_ONLY=" + System.getenv("ENVOY_IT_PARENT_ONLY"));
+                    System.out.println("ENVOY_IT_TEMPLATE_ONLY=" + System.getenv("ENVOY_IT_TEMPLATE_ONLY"));
+                }
+            }
+            '''.stripIndent()
+
+        when:
+        def result = runnerIn(build, 'probe').build()
+
+        then: 'the local .env beats the template'
+        result.output.contains('ENVOY_IT_LAYER=local')
+
+        and: 'the template beats the parent'
+        result.output.contains('ENVOY_IT_BOTH=template')
+
+        and: 'unique keys from every layer are injected'
+        result.output.contains('ENVOY_IT_PARENT_ONLY=from-parent')
+        result.output.contains('ENVOY_IT_TEMPLATE_ONLY=from-template')
+
+        and: 'the missing envFiles entry was skipped with a warning, not a failure'
+        result.output.contains('does not exist; skipping it')
+    }
+
     def "does not invoke the CLI for a build that runs no forked-JVM task"() {
         given:
         def callLog = new File(projectDir, 'op-calls.log')

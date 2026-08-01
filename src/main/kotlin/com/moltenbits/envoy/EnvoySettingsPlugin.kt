@@ -45,7 +45,7 @@ class EnvoySettingsPlugin : Plugin<Settings> {
             EnvoySecretService::class.java,
         ) {
             parameters.searchFromDir.set(settings.rootDir.absolutePath)
-            parameters.explicitEnvFile.set(extension.envFile)
+            parameters.envFiles.set(extension.envFiles)
             parameters.searchParents.set(extension.searchParentDirectories)
             parameters.cliExecutable.set(extension.cliExecutable)
             parameters.cliArgs.set(extension.cliArgs)

@@ -1,11 +1,11 @@
 package com.moltenbits.envoy.service
 
+import com.moltenbits.envoy.parse.EnvFileChain
 import com.moltenbits.envoy.parse.EnvFileParser
 import com.moltenbits.envoy.resolver.CommandResolver
 import com.moltenbits.envoy.resolver.EnvResolutionEngine
 import com.moltenbits.envoy.resolver.OnePasswordResolver
 import com.moltenbits.envoy.resolver.SecretResolver
-import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.logging.Logging
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.MapProperty
@@ -15,9 +15,10 @@ import org.gradle.api.services.BuildServiceParameters
 import java.io.File
 
 /**
- * Build-scoped service that locates the `.env`, resolves its `op://` references, and hands the resulting
- * environment map to task actions — computed **once per build** and shared across every project and forked
- * JVM.
+ * Build-scoped service that locates the chain of env files (the build dir's `.env`, configured `envFiles`,
+ * and parent-directory `.env`s — merged with [EnvFileChain]'s precedence), resolves the `op://`/custom
+ * references, and hands the resulting environment map to task actions — computed **once per build** and
+ * shared across every project and forked JVM.
  *
  * Correctness properties this class is responsible for:
  * - **Lazy**: [environment] is only invoked from task execution (via the inject action / extension providers),
@@ -34,10 +35,10 @@ abstract class EnvoySecretService : BuildService<EnvoySecretService.Params>, Aut
         /** Absolute path of the directory to begin the walk-up `.env` search from (typically the build root). */
         val searchFromDir: Property<String>
 
-        /** Explicit `.env` file; when present it is used directly and the walk-up search is skipped. */
-        val explicitEnvFile: RegularFileProperty
+        /** Explicit env files layered between the build dir's `.env` and parent files; earlier entries win. */
+        val envFiles: ListProperty<File>
 
-        /** Whether to walk up parent directories to find the nearest `.env`. Defaults to true. */
+        /** Whether to walk up parent directories, merging every `.env` found. Defaults to true. */
         val searchParents: Property<Boolean>
 
         /** 1Password CLI executable (default `op`; set `op-fast` for a Keychain-cached, offline wrapper). */
@@ -68,8 +69,16 @@ abstract class EnvoySecretService : BuildService<EnvoySecretService.Params>, Aut
     }
 
     private fun compute(): Map<String, String> {
-        val envFile = locateEnvFile() ?: return emptyMap()
-        val parsed = EnvFileParser.parse(envFile.readText())
+        val explicit = parameters.envFiles.getOrElse(emptyList())
+        explicit.filterNot { it.isFile }.forEach {
+            logger.warn("envoy: configured env file '${it.path}' does not exist; skipping it")
+        }
+        val chain = EnvFileChain.locate(
+            startDir = File(parameters.searchFromDir.get()).absoluteFile,
+            explicit = explicit,
+            searchParents = parameters.searchParents.getOrElse(true),
+        )
+        val parsed = EnvFileChain.merge(chain.map { EnvFileParser.parse(it.readText()) })
         if (parsed.isEmpty()) return emptyMap()
 
         // Built-in resolver first, so op:// always wins (the DSL also refuses to re-register it).
@@ -90,28 +99,6 @@ abstract class EnvoySecretService : BuildService<EnvoySecretService.Params>, Aut
             onSkip = { logger.warn(it) },
         )
         return engine.resolve(parsed)
-    }
-
-    /** Explicit file if configured, else the nearest `.env` walking up from [Params.searchFromDir]. */
-    private fun locateEnvFile(): File? {
-        parameters.explicitEnvFile.orNull?.asFile?.let { explicit ->
-            if (explicit.isFile) return explicit
-            logger.warn("envoy: configured envFile '${explicit.path}' does not exist; no variables loaded")
-            return null
-        }
-
-        val start = File(parameters.searchFromDir.get()).absoluteFile
-        if (!parameters.searchParents.getOrElse(true)) {
-            return File(start, ".env").takeIf { it.isFile }
-        }
-
-        var dir: File? = start
-        while (dir != null) {
-            val candidate = File(dir, ".env")
-            if (candidate.isFile) return candidate
-            dir = dir.parentFile
-        }
-        return null
     }
 
     override fun close() {
