@@ -55,7 +55,9 @@ envoy {
 
 Runnable Kotlin- and Groovy-DSL consumer projects live in [`examples/`](examples). They apply the plugin from
 source and show a resolved `op://` secret reaching a forked `run`/`test` JVM with **no per-task wiring**, and
-run hermetically against a bundled fake `op`:
+run hermetically against a bundled fake `op`. Two further examples (`vault-app`, `secretspec-app`) do the
+same with [custom resolvers](#custom-resolvers--any-backend-with-a-cli) for HashiCorp Vault and
+[SecretSpec](https://secretspec.dev):
 
 ```bash
 ENVOY_EXAMPLE_OP="$PWD/examples/fake-op" ./gradlew -p examples/kotlin-app run
@@ -63,8 +65,10 @@ ENVOY_EXAMPLE_OP="$PWD/examples/fake-op" ./gradlew -p examples/kotlin-app run
 
 ## How it works
 
-1. **Discovery** — finds the nearest `.env` by walking up from the build root (like `direnv`), so a single
-   `~/Projects/.env` covers every project nested beneath it.
+1. **Discovery** — collects every `.env` walking up from the build root (like `direnv`'s `source_up`
+   chain), so a single `~/Projects/.env` covers every project nested beneath it. All found files are
+   merged; for duplicate keys the precedence is: the build directory's own `.env`, then any configured
+   `envFiles` (earlier entries first), then parent-directory files nearest first.
 2. **Parsing** — reads `KEY=VALUE` lines (quotes, comments, and a tolerated `export ` prefix), leaving any
    `op://` value as a reference.
 3. **Precedence** — a variable **already present in the real process environment always wins** and is left
@@ -88,8 +92,8 @@ envoy {
     enabled = true                       // master switch (default: true)
     cliExecutable = "op"                 // 1Password CLI; e.g. "op-fast" (default: "op")
     cliArgs = listOf("read")             // leading args before the reference (default: ["read"])
-    searchParentDirectories = true       // walk up to find the nearest .env (default: true)
-    // envFile = file("/abs/path/.env")  // use an explicit file; disables the walk-up search
+    searchParentDirectories = true       // walk up, merging every .env found (default: true)
+    // envFiles = listOf(File(settingsDir, ".env.template"))  // extra layers below the local .env
     overrideTaskEnvironment = false      // let .env override values a task set explicitly (default: false)
     strict = false                       // fail the build on an unresolvable reference (default: false)
 }
@@ -100,10 +104,44 @@ envoy {
 | `enabled` | `true` | Turn the plugin off entirely (e.g. on CI where secrets arrive as real env vars). |
 | `cliExecutable` | `"op"` | The 1Password CLI executable. Set `"op-fast"` for Keychain caching. |
 | `cliArgs` | `["read"]` | Leading arguments placed before the reference. |
-| `searchParentDirectories` | `true` | Walk up parent directories to find the nearest `.env`. |
-| `envFile` | *(unset)* | An explicit `.env`; when set, the walk-up search is skipped. |
+| `searchParentDirectories` | `true` | Walk up parent directories, merging every `.env` found (nearer files win duplicate keys). |
+| `envFiles` | *(empty)* | Extra env files, earlier entries winning; ranked below the build dir's own `.env` and above parent-directory files. Missing entries are skipped with a warning. |
 | `overrideTaskEnvironment` | `false` | When `true`, `.env` overrides variables set explicitly on a task. The **real process environment always wins** regardless. |
 | `strict` | `false` | Lenient by default: an unresolvable reference is skipped with a warning. Set `true` to fail the build. |
+
+### Custom resolvers — any backend with a CLI
+
+1Password is built in, but any secret manager with a CLI can be wired up by mapping its reference scheme to
+a command template:
+
+```kotlin
+// settings.gradle.kts
+envoy {
+    resolver("vault://") {
+        command = listOf("vault", "kv", "get", "-field={field}", "{path}")
+    }
+    resolver("bws://") {
+        command = listOf("bws", "secret", "get")
+    }
+}
+```
+
+Any `.env` value starting with a registered scheme is resolved by running the command and reading its
+stdout (one trailing newline trimmed); everything else behaves as before. So with the above,
+`DB_TOKEN="vault://secret/my-app/token"` runs `vault kv get -field=token secret/my-app`.
+
+Placeholders, substituted in every argument:
+
+| Placeholder | Meaning | For `vault://secret/my-app/token` |
+| --- | --- | --- |
+| `{ref}` | the full reference | `vault://secret/my-app/token` |
+| `{path}` | scheme stripped, minus the final segment | `secret/my-app` |
+| `{field}` | the final `/`-separated segment | `token` |
+
+If no argument contains a placeholder, the full reference is appended as the last argument (as with
+`op read <ref>`). Custom resolvers get the same guarantees as the built-in one: lazy once-per-build
+resolution, system-env precedence, strict/lenient handling, and no secret ever logged or cached. The
+built-in `op://` scheme cannot be re-registered — customize it via `cliExecutable`/`cliArgs`.
 
 ## Security notes
 
