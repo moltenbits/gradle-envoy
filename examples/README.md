@@ -87,8 +87,9 @@ ENVOY_EXAMPLE_SECRETSPEC="$PWD/examples/fake-secretspec" ./gradlew -p examples/s
 
 Testing against the real tools is automated by the repo-root [`justfile`](../justfile) — `just deps`
 installs them via the [`Brewfile`](../Brewfile), then `just test-vault` (spins up and tears down a
-throwaway Vault dev server), `just test-secretspec`, or `just test-resolvers` for both. The manual
-equivalents follow.
+throwaway Vault dev server), `just test-secretspec`, or `just test-resolvers` for both. CI runs
+`just test-resolvers` on a macOS runner too, so the real-tool paths are exercised on every PR. The
+manual equivalents follow.
 
 ### vault-app against a real Vault
 

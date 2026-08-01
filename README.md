@@ -184,8 +184,10 @@ ENVOY_EXAMPLE_OP="$PWD/examples/fake-op" ./examples/verify.sh   # hermetic, no v
 ```
 
 [CI](.github/workflows/ci.yml) runs the plugin tests on Linux and macOS, the hermetic example
-verification on every PR (including from forks, which never receive secrets), and the live
-1Password verification on branches that can access the repository's secrets.
+verification on every PR (including from forks, which never receive secrets), the custom-resolver
+examples against a real Vault dev server and the real SecretSpec CLI (`brew bundle` +
+`just test-resolvers`, also fork-safe), and the live 1Password verification on branches that can
+access the repository's secrets.
 
 ## License
 
