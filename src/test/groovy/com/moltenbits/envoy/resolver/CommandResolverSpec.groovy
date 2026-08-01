@@ -124,6 +124,30 @@ class CommandResolverSpec extends Specification {
         r.resolve([K: 'vault://secret/x/y']) == [K: 'flood-ok']
     }
 
+    def "refuses a reference whose expansion turns a positional argument into an option"() {
+        given: 'the documented vault template and a reference smuggling a flag through {path}'
+        def r = resolver('vault://', [fakeCli('printf \'%s\' "$2"'), '-field={field}', '{path}'])
+
+        when:
+        r.resolve([SECRET_KEY: 'vault://-no-color/x'])
+
+        then:
+        def e = thrown(EnvoyResolutionException)
+
+        and: 'the message names the variable and the offending argument, and no process ran'
+        e.message.contains('SECRET_KEY')
+        e.message.contains('option-like')
+        e.message.contains('-no-color')
+    }
+
+    def "still allows option arguments the template itself declares"() {
+        given:
+        def r = resolver('vault://', [fakeCli('printf \'%s\' "$1"'), '-field={field}'])
+
+        expect:
+        r.resolve([K: 'vault://secret/app/token']) == [K: '-field=token']
+    }
+
     def "reports the variable name and CLI stderr on a non-zero exit"() {
         given:
         def r = resolver('vault://', [fakeCli('echo \'permission denied\' >&2; exit 2')])

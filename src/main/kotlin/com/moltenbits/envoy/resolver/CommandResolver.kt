@@ -1,5 +1,7 @@
 package com.moltenbits.envoy.resolver
 
+import com.moltenbits.envoy.EnvoyResolutionException
+
 /**
  * Resolves references of a user-registered [scheme] (e.g. `vault://`) by running a configured command
  * [template] — the generic escape hatch that covers any secret backend with a CLI, without shipping a
@@ -31,6 +33,19 @@ class CommandResolver(
 
     private fun read(name: String, reference: String): String {
         val command = expand(reference)
+
+        // A reference segment starting with '-' must not turn a positional template argument into a
+        // CLI option (argument injection): .env files are reviewed as config, not code. The appended
+        // no-placeholder argument is inherently safe — it always starts with the scheme.
+        command.forEachIndexed { index, arg ->
+            if (arg.startsWith("-") && template.getOrNull(index)?.startsWith("-") != true) {
+                throw EnvoyResolutionException(
+                    "Reference for $name expands to the option-like argument '$arg'; " +
+                        "refusing to run '${command.first()}' with it.",
+                )
+            }
+        }
+
         return SecretCliRunner.run(
             command = command,
             name = name,
