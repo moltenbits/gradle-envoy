@@ -13,6 +13,7 @@ import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 import java.io.File
+import java.io.IOException
 
 /**
  * Build-scoped service that locates the chain of env files (the build dir's `.env`, configured `envFiles`,
@@ -78,7 +79,18 @@ abstract class EnvoySecretService : BuildService<EnvoySecretService.Params>, Aut
             explicit = explicit,
             searchParents = parameters.searchParents.getOrElse(true),
         )
-        val parsed = EnvFileChain.merge(chain.map { EnvFileParser.parse(it.readText()) })
+        // Lenient like reference resolution: one unreadable file (permissions, TOCTOU deletion)
+        // must not fail every build beneath it — skip it, keep the readable layers.
+        val parsed = EnvFileChain.merge(
+            chain.mapNotNull { file ->
+                try {
+                    EnvFileParser.parse(file.readText())
+                } catch (e: IOException) {
+                    logger.warn("envoy: could not read env file '${file.path}' (${e.message}); skipping it")
+                    null
+                }
+            },
+        )
         if (parsed.isEmpty()) return emptyMap()
 
         // Built-in resolver first, so op:// always wins (the DSL also refuses to re-register it).

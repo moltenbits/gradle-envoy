@@ -145,6 +145,29 @@ class EnvoyPluginFunctionalSpec extends Specification {
         result.output.contains('ENVOY_IT_SECRET=sk-chain')
     }
 
+    def "skips an unreadable ancestor env file with a warning instead of failing the build"() {
+        given: 'a parent .env the build user cannot read, and a readable project .env'
+        def build = new File(projectDir, 'workspace/project')
+        writeConsumer(build, writeFakeOp('sk-unreadable'))
+        def parentEnv = new File(projectDir, 'workspace/.env')
+        parentEnv.text = 'ENVOY_IT_HIDDEN=nope\n'
+        parentEnv.setReadable(false, false)
+
+        when:
+        def result = runnerIn(build, 'probe').build()
+
+        then: 'the build succeeds and the readable layers still inject'
+        result.output.contains('ENVOY_IT_PLAIN=hello')
+        result.output.contains('ENVOY_IT_SECRET=sk-unreadable')
+
+        and: 'the unreadable file is named in a warning'
+        result.output.contains('could not read env file')
+        result.output.contains(parentEnv.absolutePath)
+
+        cleanup:
+        parentEnv.setReadable(true, false)
+    }
+
     def "layers envFiles below the local .env and above parent-directory files"() {
         given: 'three layers each claiming ENVOY_IT_LAYER, plus a missing envFiles entry'
         def workspace = new File(projectDir, 'workspace')
