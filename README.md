@@ -190,6 +190,20 @@ examples against a real Vault dev server and the real SecretSpec CLI (`brew bund
 `just test-resolvers`, also fork-safe), and the live 1Password verification on branches that can
 access the repository's secrets.
 
+## Releasing
+
+Pushing a `v*` tag runs the [release workflow](.github/workflows/release.yml): it verifies the tag
+matches the `version` in `build.gradle.kts` (a published version can never be replaced), runs the
+full suite, publishes to the [Gradle Plugin Portal](https://plugins.gradle.org/plugin/com.moltenbits.envoy)
+with the `GRADLE_PUBLISH_KEY`/`GRADLE_PUBLISH_SECRET` secrets from the protected
+`gradle-plugin-portal` environment (each publish awaits reviewer approval), and creates a GitHub
+release with generated notes. Tags containing a `-` (e.g. `v0.3.0-rc.1`) are marked pre-release.
+
+```bash
+# bump version in build.gradle.kts, merge to main, then:
+git tag v0.2.0 && git push origin v0.2.0
+```
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).
