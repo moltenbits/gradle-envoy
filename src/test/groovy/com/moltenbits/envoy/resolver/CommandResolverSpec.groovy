@@ -67,6 +67,22 @@ class CommandResolverSpec extends Specification {
         r.resolve([K: 'vault://secret/envoy-demo/token']) == [K: 'secret/envoy-demo|token']
     }
 
+    def "expands {path} to empty for a single-segment reference instead of duplicating {field}"() {
+        given: 'an id-style reference with no slash after the scheme'
+        def r = resolver('bws://', [fakeCli('printf \'p=%s,f=%s\' "$1" "$2"'), '{path}', '{field}'])
+
+        expect: 'the CLI is asked for an empty path, not the field again'
+        r.resolve([K: 'bws://only-segment']) == [K: 'p=,f=only-segment']
+    }
+
+    def "does not re-substitute placeholder text contained in the reference itself"() {
+        given: 'a reference that literally contains {path}'
+        def r = resolver('v://', [fakeCli('printf \'%s\' "$1"'), '{ref}'])
+
+        expect: 'the CLI receives the reference verbatim'
+        r.resolve([K: 'v://a/{path}']) == [K: 'v://a/{path}']
+    }
+
     def "substitutes a placeholder embedded inside a larger argument"() {
         given: 'a Vault-style flag: -field=<field>'
         def r = resolver('vault://', [fakeCli('printf \'%s\' "$1"'), '-field={field}'])

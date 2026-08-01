@@ -60,15 +60,22 @@ class CommandResolver(
         val stripped = reference.removePrefix(scheme)
         val substitutions = mapOf(
             "{ref}" to reference,
-            "{path}" to stripped.substringBeforeLast('/'),
+            "{path}" to stripped.substringBeforeLast('/', missingDelimiterValue = ""),
             "{field}" to stripped.substringAfterLast('/'),
         )
+        // Single pass, so placeholder text occurring inside the reference itself is never
+        // re-substituted — the CLI must receive exactly what the .env declared.
         var substituted = false
         val expanded = template.map { arg ->
-            substitutions.entries
-                .fold(arg) { acc, (placeholder, value) -> acc.replace(placeholder, value) }
-                .also { if (it != arg) substituted = true }
+            PLACEHOLDER.replace(arg) { match ->
+                substituted = true
+                substitutions.getValue(match.value)
+            }
         }
         return if (substituted) expanded else expanded + reference
+    }
+
+    private companion object {
+        val PLACEHOLDER = Regex("""\{(ref|path|field)}""")
     }
 }
