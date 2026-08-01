@@ -57,8 +57,6 @@ abstract class EnvoyExtension {
     /** Custom scheme → command template, populated via [resolver]. Read by the plugin; not set directly. */
     abstract val commandResolvers: MapProperty<String, List<String>>
 
-    private val registeredSchemes = mutableSetOf<String>()
-
     /**
      * Registers a custom resolver: any `.env` value starting with [scheme] is resolved by running the
      * configured [ResolverConfig.command] and reading its stdout.
@@ -82,7 +80,7 @@ abstract class EnvoyExtension {
             "envoy.resolver: \"${OnePasswordResolver.SCHEME}\" is built in and always wins; " +
                 "customize it via cliExecutable/cliArgs instead"
         }
-        require(registeredSchemes.add(scheme)) {
+        require(!commandResolvers.get().containsKey(scheme)) {
             "envoy.resolver: scheme \"$scheme\" is already registered"
         }
         val config = ResolverConfig()
