@@ -8,6 +8,8 @@ a manual smoke test.
 | --- | --- | --- |
 | [`kotlin-app`](kotlin-app) | Kotlin | Injection into `run` (JavaExec) **and** `test` (Test), asserted by a Spock spec |
 | [`groovy-app`](groovy-app) | Groovy | The `envoy { }` extension from a Groovy build, injection into `run` |
+| [`vault-app`](vault-app) | Kotlin | A custom `vault://` resolver mapped to the HashiCorp Vault CLI via `resolver(...)` |
+| [`secretspec-app`](secretspec-app) | Kotlin | A custom `secretspec://` resolver mapped to the [SecretSpec](https://secretspec.dev) CLI |
 
 Neither build wires `environment(...)` into any task — gradle-envoy does it automatically.
 
@@ -69,6 +71,60 @@ example's [`.env`](kotlin-app/.env), resolved by the fake CLI and injected — w
 The placeholder `op://Example Vault/...` reference won't resolve against your vault, so with the real CLI it
 is skipped with a warning (lenient mode) and `ENVOY_EXAMPLE_TOKEN` prints as `null` until you point it at a
 real item. The `GREETING` literal always works.
+
+## Custom resolver examples
+
+`vault-app` and `secretspec-app` demonstrate the generic command resolver: mapping a reference scheme to a
+CLI command template in `settings.gradle.kts`, with no 1Password involvement at all. `verify.sh` always runs
+them against their bundled fake CLIs ([`fake-vault`](fake-vault), [`fake-secretspec`](fake-secretspec)); by
+default they call the real tools on your `PATH`:
+
+```bash
+# hermetic, no tools needed
+ENVOY_EXAMPLE_VAULT="$PWD/examples/fake-vault" ./gradlew -p examples/vault-app run
+ENVOY_EXAMPLE_SECRETSPEC="$PWD/examples/fake-secretspec" ./gradlew -p examples/secretspec-app run
+```
+
+Testing against the real tools is automated by the repo-root [`justfile`](../justfile) — `just deps`
+installs them via the [`Brewfile`](../Brewfile), then `just test-vault` (spins up and tears down a
+throwaway Vault dev server), `just test-secretspec`, or `just test-resolvers` for both. CI runs
+`just test-resolvers` on a macOS runner too, so the real-tool paths are exercised on every PR. The
+manual equivalents follow.
+
+### vault-app against a real Vault
+
+The example's `.env` references `vault://secret/envoy-example/token`, which the registered template expands
+to `vault kv get -field=token secret/envoy-example`. A throwaway dev server proves it end to end:
+
+```bash
+vault server -dev -dev-root-token-id=root &
+export VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=root
+vault kv put secret/envoy-example token=envoy_cred
+./gradlew -p examples/vault-app run     # ENVOY_EXAMPLE_TOKEN = envoy_cred
+```
+
+`VAULT_ADDR`/`VAULT_TOKEN` must be in the environment the **Gradle daemon** inherits — a daemon started
+before you exported them won't see them (`./gradlew --stop` and rerun, or add `--no-daemon`).
+
+### secretspec-app against the real SecretSpec
+
+No server needed: the example pins SecretSpec's `dotenv` provider to the committed
+[`store.env`](secretspec-app/store.env) (a dummy value), so with `secretspec` installed
+(`brew install secretspec`) it works out of the box:
+
+```bash
+./gradlew -p examples/secretspec-app run     # ENVOY_EXAMPLE_TOKEN = example-secretspec-secret
+```
+
+The registered template shows three things a real SecretSpec setup needs: `{field}` to strip the scheme
+(`secretspec get` takes the bare key name), absolute `-f`/provider paths (the CLI inherits the daemon's
+working directory, not the project's), and `--reason` for SecretSpec's agent-access audit policy. Swap the
+`--provider` flag for `keyring` or `onepassword://...` to route through any of its other backends.
+
+> **Warning:** a `dotenv` provider store holds **plaintext secret values** — the committed
+> [`store.env`](secretspec-app/store.env) is a demo-only dummy. If you copy this example, never point a
+> real store at a git-tracked path (`secretspec set` against the pinned path would write real secrets
+> into the repo); use a keychain-backed provider or an untracked, gitignored store file.
 
 ## In IntelliJ
 

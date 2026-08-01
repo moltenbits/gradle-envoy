@@ -45,11 +45,16 @@ class EnvoySettingsPlugin : Plugin<Settings> {
             EnvoySecretService::class.java,
         ) {
             parameters.searchFromDir.set(settings.rootDir.absolutePath)
-            parameters.explicitEnvFile.set(extension.envFile)
+            // Anchor relative entries at the build root: File::isFile would otherwise resolve them
+            // against the shared daemon's working directory. resolve() leaves absolute paths as-is.
+            parameters.envFiles.set(
+                extension.envFiles.map { files -> files.map { settings.rootDir.resolve(it) } },
+            )
             parameters.searchParents.set(extension.searchParentDirectories)
             parameters.cliExecutable.set(extension.cliExecutable)
             parameters.cliArgs.set(extension.cliArgs)
             parameters.strict.set(extension.strict)
+            parameters.commandResolvers.set(extension.commandResolvers)
         }
 
         // Capture only plain value Providers; look the service up by name *inside* the action (at run time,

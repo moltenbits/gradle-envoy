@@ -1,9 +1,5 @@
 package com.moltenbits.envoy.resolver
 
-import com.moltenbits.envoy.EnvoyResolutionException
-import java.io.IOException
-import java.util.concurrent.TimeUnit
-
 /**
  * Resolves 1Password `op://vault/item/field` references by shelling out to the 1Password CLI
  * (`op read <reference>` by default).
@@ -23,7 +19,7 @@ class OnePasswordResolver(
     private val timeoutSeconds: Long = 60,
 ) : SecretResolver {
 
-    override fun handles(rawValue: String): Boolean = rawValue.startsWith(REFERENCE_PREFIX)
+    override fun handles(rawValue: String): Boolean = rawValue.startsWith(SCHEME)
 
     override fun resolve(references: Map<String, String>): Map<String, String> =
         references.mapValues { (name, reference) -> read(name, reference) }
@@ -34,32 +30,18 @@ class OnePasswordResolver(
             addAll(readArgs)
             add(reference)
         }
-
-        val process = try {
-            ProcessBuilder(command).start()
-        } catch (e: IOException) {
-            throw EnvoyResolutionException(
+        return SecretCliRunner.run(
+            command = command,
+            name = name,
+            timeoutSeconds = timeoutSeconds,
+            missingExecutableMessage =
                 "Could not run '$executable' to resolve $name. Is the 1Password CLI installed and on PATH? " +
                     "Point envoy.cliExecutable at it if needed (e.g. \"op-fast\").",
-                e,
-            )
-        }
-
-        // `op read` writes only the secret to stdout. Read it fully (output is small), then stderr.
-        val stdout = process.inputStream.readBytes()
-        val stderr = process.errorStream.readBytes().decodeToString().trim()
-
-        if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
-            process.destroyForcibly()
-            throw EnvoyResolutionException("Timed out after ${timeoutSeconds}s resolving $name via '$executable'.")
-        }
-        if (process.exitValue() != 0) {
-            throw EnvoyResolutionException("'$executable' exited ${process.exitValue()} resolving $name: $stderr")
-        }
-        return stdout.decodeToString().trimEnd('\n', '\r')
+        )
     }
 
-    private companion object {
-        const val REFERENCE_PREFIX = "op://"
+    companion object {
+        /** The reference scheme this built-in resolver owns; custom resolvers may not claim it. */
+        const val SCHEME = "op://"
     }
 }

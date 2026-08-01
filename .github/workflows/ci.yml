@@ -99,6 +99,49 @@ jobs:
         run: ./examples/verify.sh
 
   # ---------------------------------------------------------------------------------------------
+  # The custom-resolver examples against REAL backends: a throwaway Vault dev server and the real
+  # SecretSpec CLI (dotenv provider). Hermetic in CI terms — no accounts, no secrets — so it runs
+  # on fork PRs too. macOS so it reuses the same Brewfile + justfile a developer runs locally.
+  # ---------------------------------------------------------------------------------------------
+  examples-real-backends:
+    name: Examples (real Vault + SecretSpec)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: jdk17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - id: jdk21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Register the installed JDKs with Gradle
+        uses: ./.github/actions/register-jdks
+        with:
+          jdk17-path: ${{ steps.jdk17.outputs.path }}
+          jdk21-path: ${{ steps.jdk21.outputs.path }}
+
+      # HOMEBREW_NO_REQUIRE_TAP_TRUST: Homebrew 6 refuses formulae from taps that were never
+      # interactively trusted, and `brew bundle` auto-taps hashicorp/tap here (Vault left
+      # homebrew-core after the BSL relicense). The `brew trust` alternative is still unreliable
+      # with bundle (Homebrew/brew#22631).
+      - name: Install Vault, SecretSpec, and just
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_REQUIRE_TAP_TRUST: '1'
+        run: brew bundle
+
+      - name: Test the custom resolvers against the real backends
+        run: just test-resolvers
+
+  # ---------------------------------------------------------------------------------------------
   # The same validation against the REAL 1Password CLI, authenticated with a service account.
   # This is the only job that proves `op` integration actually works end to end.
   #
