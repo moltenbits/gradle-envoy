@@ -128,9 +128,14 @@ jobs:
           jdk17-path: ${{ steps.jdk17.outputs.path }}
           jdk21-path: ${{ steps.jdk21.outputs.path }}
 
+      # HOMEBREW_NO_REQUIRE_TAP_TRUST: Homebrew 6 refuses formulae from taps that were never
+      # interactively trusted, and `brew bundle` auto-taps hashicorp/tap here (Vault left
+      # homebrew-core after the BSL relicense). The `brew trust` alternative is still unreliable
+      # with bundle (Homebrew/brew#22631).
       - name: Install Vault, SecretSpec, and just
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_REQUIRE_TAP_TRUST: '1'
         run: brew bundle
 
       - name: Test the custom resolvers against the real backends
