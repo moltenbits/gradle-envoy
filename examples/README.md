@@ -121,6 +121,11 @@ The registered template shows three things a real SecretSpec setup needs: `{fiel
 working directory, not the project's), and `--reason` for SecretSpec's agent-access audit policy. Swap the
 `--provider` flag for `keyring` or `onepassword://...` to route through any of its other backends.
 
+> **Warning:** a `dotenv` provider store holds **plaintext secret values** — the committed
+> [`store.env`](secretspec-app/store.env) is a demo-only dummy. If you copy this example, never point a
+> real store at a git-tracked path (`secretspec set` against the pinned path would write real secrets
+> into the repo); use a keychain-backed provider or an untracked, gitignored store file.
+
 ## In IntelliJ
 
 Open an example as a Gradle project and run `App` or the test with **execution delegated to Gradle**
