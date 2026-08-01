@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.moltenbits"
-version = "0.1.0"
+version = "0.2.0"
 
 // Compile the plugin to Java 17 bytecode for broad consumer reach, even though the
 // Gradle daemon that builds it may run on a newer JDK. Min supported Gradle: 8.8
