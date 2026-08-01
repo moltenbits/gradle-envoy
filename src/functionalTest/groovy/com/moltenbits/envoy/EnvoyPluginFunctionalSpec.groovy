@@ -182,7 +182,7 @@ class EnvoyPluginFunctionalSpec extends Specification {
             |plugins { id("com.moltenbits.envoy") }
             |rootProject.name = "consumer"
             |envoy {
-            |    envFiles.set(listOf(File(settingsDir, "missing.env"), File(settingsDir, ".env.template")))
+            |    envFiles.set(listOf(File("missing.env"), File(".env.template")))
             |}
             |'''.stripMargin()
         new File(build, 'build.gradle.kts').text = PROBE_BUILD
