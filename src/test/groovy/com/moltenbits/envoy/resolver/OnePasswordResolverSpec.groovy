@@ -4,6 +4,7 @@ import com.moltenbits.envoy.EnvoyResolutionException
 import spock.lang.IgnoreIf
 import spock.lang.Specification
 import spock.lang.TempDir
+import spock.lang.Timeout
 
 import java.nio.file.Path
 
@@ -88,6 +89,19 @@ class OnePasswordResolverSpec extends Specification {
         and: 'the message names the env var and includes CLI stderr'
         e.message.contains('SECRET_KEY')
         e.message.contains('no item matches')
+    }
+
+    @Timeout(10)
+    def "times out instead of hanging when op never responds"() {
+        given: 'a fake op stuck the way a CLI blocked on desktop-app authorization is'
+        def resolver = new OnePasswordResolver(fakeOp('sleep 30'), ['read'], 1L)
+
+        when:
+        resolver.resolve([K: 'op://x/y/z'])
+
+        then:
+        def e = thrown(EnvoyResolutionException)
+        e.message.contains('Timed out after 1s')
     }
 
     def "gives a helpful error when the binary is missing"() {

@@ -1,9 +1,5 @@
 package com.moltenbits.envoy.resolver
 
-import com.moltenbits.envoy.EnvoyResolutionException
-import java.io.IOException
-import java.util.concurrent.TimeUnit
-
 /**
  * Resolves references of a user-registered [scheme] (e.g. `vault://`) by running a configured command
  * [template] — the generic escape hatch that covers any secret backend with a CLI, without shipping a
@@ -35,30 +31,14 @@ class CommandResolver(
 
     private fun read(name: String, reference: String): String {
         val command = expand(reference)
-        val executable = command.first()
-
-        val process = try {
-            ProcessBuilder(command).start()
-        } catch (e: IOException) {
-            throw EnvoyResolutionException(
-                "Could not run '$executable' to resolve $name (registered for '$scheme'). " +
+        return SecretCliRunner.run(
+            command = command,
+            name = name,
+            timeoutSeconds = timeoutSeconds,
+            missingExecutableMessage =
+                "Could not run '${command.first()}' to resolve $name (registered for '$scheme'). " +
                     "Is it installed and on PATH?",
-                e,
-            )
-        }
-
-        // The command writes only the secret to stdout. Read it fully (output is small), then stderr.
-        val stdout = process.inputStream.readBytes()
-        val stderr = process.errorStream.readBytes().decodeToString().trim()
-
-        if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
-            process.destroyForcibly()
-            throw EnvoyResolutionException("Timed out after ${timeoutSeconds}s resolving $name via '$executable'.")
-        }
-        if (process.exitValue() != 0) {
-            throw EnvoyResolutionException("'$executable' exited ${process.exitValue()} resolving $name: $stderr")
-        }
-        return stdout.decodeToString().trimEnd('\n', '\r')
+        )
     }
 
     private fun expand(reference: String): List<String> {
