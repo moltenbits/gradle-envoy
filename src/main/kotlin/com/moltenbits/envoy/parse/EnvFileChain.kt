@@ -15,11 +15,20 @@ import java.io.File
  */
 object EnvFileChain {
 
-    /** Ordered, deduplicated, highest-precedence-first list of the env files that exist. */
-    fun locate(startDir: File, explicit: List<File>, searchParents: Boolean): List<File> {
+    /**
+     * Ordered, deduplicated, highest-precedence-first list of the env files that exist.
+     * An explicit entry that is not a regular file is dropped and reported to [onMissingExplicit],
+     * keeping the caller's warning in lockstep with what is actually skipped here.
+     */
+    fun locate(
+        startDir: File,
+        explicit: List<File>,
+        searchParents: Boolean,
+        onMissingExplicit: (File) -> Unit,
+    ): List<File> {
         val chain = mutableListOf<File>()
         File(startDir, ENV_FILE_NAME).takeIf(File::isFile)?.let(chain::add)
-        explicit.filter(File::isFile).forEach(chain::add)
+        explicit.forEach { if (it.isFile) chain.add(it) else onMissingExplicit(it) }
         if (searchParents) {
             var dir: File? = startDir.absoluteFile.parentFile
             while (dir != null) {

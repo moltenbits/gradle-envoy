@@ -1,5 +1,7 @@
 package com.moltenbits.envoy.parse
 
+import kotlin.Unit
+import kotlin.jvm.functions.Function1
 import spock.lang.Specification
 import spock.lang.TempDir
 
@@ -9,6 +11,9 @@ class EnvFileChainSpec extends Specification {
 
     // EnvFileChain is a Kotlin `object`, so from Groovy it is reached through INSTANCE.
     static final EnvFileChain CHAIN = EnvFileChain.INSTANCE
+
+    // Kotlin (File) -> Unit; a closure satisfies it once it returns Unit.INSTANCE.
+    static final Function1<File, Unit> IGNORE_MISSING = { File f -> Unit.INSTANCE } as Function1
 
     @TempDir
     Path tempDir
@@ -36,7 +41,7 @@ class EnvFileChainSpec extends Specification {
         def grandEnv = env(grand)
 
         expect: 'take(4) keeps the assertion immune to stray .env files above the temp dir'
-        CHAIN.locate(build, [template], true).take(4) == [buildEnv, template, parentEnv, grandEnv]
+        CHAIN.locate(build, [template], true, IGNORE_MISSING).take(4) == [buildEnv, template, parentEnv, grandEnv]
     }
 
     def "explicit files keep their array order"() {
@@ -46,18 +51,21 @@ class EnvFileChainSpec extends Specification {
         def b = env(build, 'b.env')
 
         expect:
-        CHAIN.locate(build, [a, b], false) == [a, b]
-        CHAIN.locate(build, [b, a], false) == [b, a]
+        CHAIN.locate(build, [a, b], false, IGNORE_MISSING) == [a, b]
+        CHAIN.locate(build, [b, a], false, IGNORE_MISSING) == [b, a]
     }
 
-    def "skips explicit files that do not exist"() {
+    def "skips explicit files that do not exist, reporting each to the callback"() {
         given:
         def build = dir('b')
         def real = env(build, 'real.env')
         def missing = new File(build, 'nope.env')
+        def reported = []
+        def onMissing = { File f -> reported << f; Unit.INSTANCE } as Function1
 
         expect:
-        CHAIN.locate(build, [missing, real], false) == [real]
+        CHAIN.locate(build, [missing, real], false, onMissing) == [real]
+        reported == [missing]
     }
 
     def "searchParents false keeps only the build dir .env and explicit files"() {
@@ -68,7 +76,7 @@ class EnvFileChainSpec extends Specification {
         env(parent)
 
         expect:
-        CHAIN.locate(build, [], false) == [buildEnv]
+        CHAIN.locate(build, [], false, IGNORE_MISSING) == [buildEnv]
     }
 
     def "deduplicates an explicit file that is also the build dir .env"() {
@@ -77,12 +85,12 @@ class EnvFileChainSpec extends Specification {
         def buildEnv = env(build)
 
         expect:
-        CHAIN.locate(build, [new File(build, '.env')], false) == [buildEnv]
+        CHAIN.locate(build, [new File(build, '.env')], false, IGNORE_MISSING) == [buildEnv]
     }
 
     def "returns empty when nothing exists"() {
         expect:
-        CHAIN.locate(dir('empty'), [], false).isEmpty()
+        CHAIN.locate(dir('empty'), [], false, IGNORE_MISSING).isEmpty()
     }
 
     def "merge lets earlier maps win duplicate keys and unions the rest"() {

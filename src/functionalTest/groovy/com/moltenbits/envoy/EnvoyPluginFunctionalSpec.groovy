@@ -169,10 +169,11 @@ class EnvoyPluginFunctionalSpec extends Specification {
     }
 
     def "layers envFiles below the local .env and above parent-directory files"() {
-        given: 'three layers each claiming ENVOY_IT_LAYER, plus a missing envFiles entry'
+        given: 'three layers each claiming ENVOY_IT_LAYER, plus missing and directory envFiles entries'
         def workspace = new File(projectDir, 'workspace')
         def build = new File(workspace, 'project')
         new File(build, 'src/main/java').mkdirs()
+        new File(build, 'a-directory').mkdirs()
         new File(workspace, '.env').text =
                 'ENVOY_IT_LAYER=parent\nENVOY_IT_BOTH=parent\nENVOY_IT_PARENT_ONLY=from-parent\n'
         new File(build, '.env').text = 'ENVOY_IT_LAYER=local\n'
@@ -182,7 +183,7 @@ class EnvoyPluginFunctionalSpec extends Specification {
             |plugins { id("com.moltenbits.envoy") }
             |rootProject.name = "consumer"
             |envoy {
-            |    envFiles.set(listOf(File("missing.env"), File(".env.template")))
+            |    envFiles.set(listOf(File("missing.env"), File("a-directory"), File(".env.template")))
             |}
             |'''.stripMargin()
         new File(build, 'build.gradle.kts').text = PROBE_BUILD
@@ -210,8 +211,9 @@ class EnvoyPluginFunctionalSpec extends Specification {
         result.output.contains('ENVOY_IT_PARENT_ONLY=from-parent')
         result.output.contains('ENVOY_IT_TEMPLATE_ONLY=from-template')
 
-        and: 'the missing envFiles entry was skipped with a warning, not a failure'
+        and: 'the missing and directory entries were each skipped with an accurate warning'
         result.output.contains('does not exist; skipping it')
+        result.output.contains('is not a regular file; skipping it')
     }
 
     def "does not invoke the CLI for a build that runs no forked-JVM task"() {
