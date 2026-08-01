@@ -1,12 +1,14 @@
 package com.moltenbits.envoy.service
 
 import com.moltenbits.envoy.parse.EnvFileParser
+import com.moltenbits.envoy.resolver.CommandResolver
 import com.moltenbits.envoy.resolver.EnvResolutionEngine
 import com.moltenbits.envoy.resolver.OnePasswordResolver
 import com.moltenbits.envoy.resolver.SecretResolver
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.logging.Logging
 import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
@@ -46,6 +48,9 @@ abstract class EnvoySecretService : BuildService<EnvoySecretService.Params>, Aut
 
         /** Fail the build when a reference cannot be resolved, instead of skipping it with a warning. */
         val strict: Property<Boolean>
+
+        /** Custom scheme → command template registered via `envoy.resolver(...)` (non-secret argv strings). */
+        val commandResolvers: MapProperty<String, List<String>>
     }
 
     private val logger = Logging.getLogger(EnvoySecretService::class.java)
@@ -67,13 +72,18 @@ abstract class EnvoySecretService : BuildService<EnvoySecretService.Params>, Aut
         val parsed = EnvFileParser.parse(envFile.readText())
         if (parsed.isEmpty()) return emptyMap()
 
-        val resolvers: List<SecretResolver> = listOf(
-            OnePasswordResolver(
-                executable = parameters.cliExecutable.getOrElse("op"),
-                readArgs = parameters.cliArgs.getOrElse(listOf("read")),
-            ),
-            // Future password managers plug in here — each recognised by its own reference scheme.
-        )
+        // Built-in resolver first, so op:// always wins (the DSL also refuses to re-register it).
+        val resolvers: List<SecretResolver> = buildList {
+            add(
+                OnePasswordResolver(
+                    executable = parameters.cliExecutable.getOrElse("op"),
+                    readArgs = parameters.cliArgs.getOrElse(listOf("read")),
+                ),
+            )
+            parameters.commandResolvers.getOrElse(emptyMap()).forEach { (scheme, template) ->
+                add(CommandResolver(scheme, template))
+            }
+        }
         val engine = EnvResolutionEngine(
             resolvers = resolvers,
             strict = parameters.strict.getOrElse(false),

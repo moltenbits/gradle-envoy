@@ -188,6 +188,41 @@ class EnvoyPluginFunctionalSpec extends Specification {
         result.output.contains('skipping ENVOY_IT_SECRET')
     }
 
+    def "resolves a custom scheme registered via the resolver DSL"() {
+        given: 'a fake vault-style CLI that echoes the args it was invoked with'
+        def fakeVault = new File(projectDir, 'fake-vault')
+        fakeVault.text = '#!/bin/sh\nprintf \'resolved:%s:%s\' "$1" "$2"\n'
+        fakeVault.setExecutable(true)
+
+        and: 'a consumer registering vault:// with {path}/{field} placeholders'
+        new File(projectDir, 'settings.gradle.kts').text = """\
+            |plugins { id("com.moltenbits.envoy") }
+            |rootProject.name = "consumer"
+            |envoy {
+            |    resolver("vault://") {
+            |        command = listOf(${quoted(fakeVault.absolutePath)}, "{path}", "-field={field}")
+            |    }
+            |}
+            |""".stripMargin()
+        new File(projectDir, 'build.gradle.kts').text = PROBE_BUILD
+        def probe = new File(projectDir, 'src/main/java/Probe.java')
+        probe.parentFile.mkdirs()
+        probe.text = '''\
+            public class Probe {
+                public static void main(String[] args) {
+                    System.out.println("ENVOY_IT_VAULT=" + System.getenv("ENVOY_IT_VAULT"));
+                }
+            }
+            '''.stripIndent()
+        new File(projectDir, '.env').text = 'ENVOY_IT_VAULT="vault://secret/envoy-demo/token"\n'
+
+        when:
+        def result = runnerIn(projectDir, 'probe').build()
+
+        then: 'the reference was split into path and field and resolved end-to-end'
+        result.output.contains('ENVOY_IT_VAULT=resolved:secret/envoy-demo:-field=token')
+    }
+
     def "strict mode fails the build on an unresolved reference"() {
         given:
         writeConsumer(projectDir, new File(projectDir, 'nonexistent-op'), true)

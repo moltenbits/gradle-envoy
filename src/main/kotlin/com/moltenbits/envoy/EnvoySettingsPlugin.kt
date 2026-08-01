@@ -50,6 +50,7 @@ class EnvoySettingsPlugin : Plugin<Settings> {
             parameters.cliExecutable.set(extension.cliExecutable)
             parameters.cliArgs.set(extension.cliArgs)
             parameters.strict.set(extension.strict)
+            parameters.commandResolvers.set(extension.commandResolvers)
         }
 
         // Capture only plain value Providers; look the service up by name *inside* the action (at run time,

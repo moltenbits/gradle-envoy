@@ -23,7 +23,7 @@ class OnePasswordResolver(
     private val timeoutSeconds: Long = 60,
 ) : SecretResolver {
 
-    override fun handles(rawValue: String): Boolean = rawValue.startsWith(REFERENCE_PREFIX)
+    override fun handles(rawValue: String): Boolean = rawValue.startsWith(SCHEME)
 
     override fun resolve(references: Map<String, String>): Map<String, String> =
         references.mapValues { (name, reference) -> read(name, reference) }
@@ -59,7 +59,8 @@ class OnePasswordResolver(
         return stdout.decodeToString().trimEnd('\n', '\r')
     }
 
-    private companion object {
-        const val REFERENCE_PREFIX = "op://"
+    companion object {
+        /** The reference scheme this built-in resolver owns; custom resolvers may not claim it. */
+        const val SCHEME = "op://"
     }
 }
