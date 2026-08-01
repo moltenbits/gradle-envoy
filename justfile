@@ -15,7 +15,7 @@ test-vault:
     #!/usr/bin/env bash
     set -euo pipefail
     export VAULT_ADDR=http://127.0.0.1:18200 VAULT_TOKEN=root
-    log="$(mktemp -t envoy-vault-dev)"
+    log="$(mktemp "${TMPDIR:-/tmp}/envoy-vault-dev.XXXXXX")"
     vault server -dev -dev-root-token-id=root -dev-listen-address=127.0.0.1:18200 >"$log" 2>&1 &
     pid=$!
     trap 'kill "$pid" 2>/dev/null || true' EXIT
