@@ -4,6 +4,10 @@ import com.moltenbits.envoy.EnvoyResolutionException
 import kotlin.Unit
 import kotlin.jvm.functions.Function1
 import spock.lang.Specification
+import spock.lang.Timeout
+
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class EnvResolutionEngineSpec extends Specification {
 
@@ -72,6 +76,32 @@ class EnvResolutionEngineSpec extends Specification {
 
         then:
         result == [PLAIN: 'literal', SECRET: 'S']
+    }
+
+    @Timeout(10)
+    def "resolves independent references concurrently, not one after another"() {
+        given: 'a resolver that only completes once BOTH resolutions are in flight at the same time'
+        def bothStarted = new CountDownLatch(2)
+        def resolver = new SecretResolver() {
+            boolean handles(String raw) { raw.startsWith('op://') }
+
+            Map<String, String> resolve(Map<String, String> refs) {
+                bothStarted.countDown()
+                assert bothStarted.await(5, TimeUnit.SECONDS): 'the second resolution never started'
+                refs.collectEntries { k, v -> [k, "r-$v"] }
+            }
+        }
+
+        expect:
+        engine([resolver]).resolve([A: 'op://a', B: 'op://b']) == [A: 'r-op://a', B: 'r-op://b']
+    }
+
+    def "preserves declaration order in the result even with concurrent resolution"() {
+        given:
+        def subject = engine([resolverThat { "v-$it" }])
+
+        expect:
+        subject.resolve([C: 'op://c', A: 'lit', B: 'op://b']).keySet() as List == ['C', 'A', 'B']
     }
 
     def "strict mode rethrows a resolution failure"() {
