@@ -8,7 +8,9 @@ import java.io.File
  * Precedence, highest first:
  * 1. the build directory's own `.env` — machine-local overrides
  * 2. explicitly configured files, in list order (earlier = higher) — committed project config
- * 3. `.env` files discovered walking up parent directories, nearest first — workspace fallbacks
+ * 3. `.env` files discovered walking up parent directories, nearest first — workspace fallbacks.
+ *    When the build lives inside the home directory the walk stops there (inclusive), so a
+ *    planted `.env` in a world-writable ancestor like `/Users` or `/tmp`'s parents is never merged.
  *
  * A variable already present in the real process environment is left untouched regardless; that
  * rule lives in [com.moltenbits.envoy.resolver.EnvResolutionEngine], above any file.
@@ -24,14 +26,17 @@ object EnvFileChain {
         startDir: File,
         explicit: List<File>,
         searchParents: Boolean,
+        home: File?,
         onMissingExplicit: (File) -> Unit,
     ): List<File> {
         val chain = mutableListOf<File>()
         File(startDir, ENV_FILE_NAME).takeIf(File::isFile)?.let(chain::add)
         explicit.forEach { if (it.isFile) chain.add(it) else onMissingExplicit(it) }
         if (searchParents) {
-            var dir: File? = startDir.absoluteFile.parentFile
-            while (dir != null) {
+            val start = startDir.absoluteFile.normalize()
+            val boundary = home?.absoluteFile?.normalize()?.takeIf { start.startsWith(it) }
+            var dir: File? = start.parentFile
+            while (dir != null && (boundary == null || dir.startsWith(boundary))) {
                 File(dir, ENV_FILE_NAME).takeIf(File::isFile)?.let(chain::add)
                 dir = dir.parentFile
             }

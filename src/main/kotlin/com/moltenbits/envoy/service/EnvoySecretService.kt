@@ -74,11 +74,15 @@ abstract class EnvoySecretService : BuildService<EnvoySecretService.Params>, Aut
             startDir = File(parameters.searchFromDir.get()).absoluteFile,
             explicit = parameters.envFiles.getOrElse(emptyList()),
             searchParents = parameters.searchParents.getOrElse(true),
+            home = File(System.getProperty("user.home")),
             onMissingExplicit = { file ->
                 val reason = if (file.exists()) "is not a regular file" else "does not exist"
                 logger.warn("envoy: configured env file '${file.path}' $reason; skipping it")
             },
         )
+        if (chain.isNotEmpty()) {
+            logger.info("envoy: env file chain (highest precedence first): ${chain.joinToString(", ") { it.path }}")
+        }
         // Lenient like reference resolution: one unreadable file (permissions, TOCTOU deletion)
         // must not fail every build beneath it — skip it, keep the readable layers.
         val parsed = EnvFileChain.merge(

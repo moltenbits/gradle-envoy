@@ -65,10 +65,11 @@ ENVOY_EXAMPLE_OP="$PWD/examples/fake-op" ./gradlew -p examples/kotlin-app run
 
 ## How it works
 
-1. **Discovery** — collects every `.env` walking up from the build root (like `direnv`'s `source_up`
-   chain), so a single `~/Projects/.env` covers every project nested beneath it. All found files are
-   merged; for duplicate keys the precedence is: the build directory's own `.env`, then any configured
-   `envFiles` (earlier entries first), then parent-directory files nearest first.
+1. **Discovery** — collects every `.env` walking up from the build root to your home directory (like
+   `direnv`'s `source_up` chain), so a single `~/Projects/.env` covers every project nested beneath it.
+   All found files are merged; for duplicate keys the precedence is: the build directory's own `.env`,
+   then any configured `envFiles` (earlier entries first), then parent-directory files nearest first.
+   The loaded chain is logged at `--info`.
 2. **Parsing** — reads `KEY=VALUE` lines (quotes, comments, and a tolerated `export ` prefix), leaving any
    `op://` value as a reference.
 3. **Precedence** — a variable **already present in the real process environment always wins** and is left

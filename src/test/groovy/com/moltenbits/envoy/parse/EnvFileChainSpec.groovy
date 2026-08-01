@@ -41,7 +41,7 @@ class EnvFileChainSpec extends Specification {
         def grandEnv = env(grand)
 
         expect: 'take(4) keeps the assertion immune to stray .env files above the temp dir'
-        CHAIN.locate(build, [template], true, IGNORE_MISSING).take(4) == [buildEnv, template, parentEnv, grandEnv]
+        CHAIN.locate(build, [template], true, null, IGNORE_MISSING).take(4) == [buildEnv, template, parentEnv, grandEnv]
     }
 
     def "explicit files keep their array order"() {
@@ -51,8 +51,8 @@ class EnvFileChainSpec extends Specification {
         def b = env(build, 'b.env')
 
         expect:
-        CHAIN.locate(build, [a, b], false, IGNORE_MISSING) == [a, b]
-        CHAIN.locate(build, [b, a], false, IGNORE_MISSING) == [b, a]
+        CHAIN.locate(build, [a, b], false, null, IGNORE_MISSING) == [a, b]
+        CHAIN.locate(build, [b, a], false, null, IGNORE_MISSING) == [b, a]
     }
 
     def "skips explicit files that do not exist, reporting each to the callback"() {
@@ -64,7 +64,7 @@ class EnvFileChainSpec extends Specification {
         def onMissing = { File f -> reported << f; Unit.INSTANCE } as Function1
 
         expect:
-        CHAIN.locate(build, [missing, real], false, onMissing) == [real]
+        CHAIN.locate(build, [missing, real], false, null, onMissing) == [real]
         reported == [missing]
     }
 
@@ -76,7 +76,7 @@ class EnvFileChainSpec extends Specification {
         env(parent)
 
         expect:
-        CHAIN.locate(build, [], false, IGNORE_MISSING) == [buildEnv]
+        CHAIN.locate(build, [], false, null, IGNORE_MISSING) == [buildEnv]
     }
 
     def "deduplicates an explicit file that is also the build dir .env"() {
@@ -85,12 +85,36 @@ class EnvFileChainSpec extends Specification {
         def buildEnv = env(build)
 
         expect:
-        CHAIN.locate(build, [new File(build, '.env')], false, IGNORE_MISSING) == [buildEnv]
+        CHAIN.locate(build, [new File(build, '.env')], false, null, IGNORE_MISSING) == [buildEnv]
     }
 
     def "returns empty when nothing exists"() {
         expect:
-        CHAIN.locate(dir('empty'), [], false, IGNORE_MISSING).isEmpty()
+        CHAIN.locate(dir('empty'), [], false, null, IGNORE_MISSING).isEmpty()
+    }
+
+    def "bounds the parent walk at the home directory when the build is inside it"() {
+        given: 'a directory above home holding a .env that must never load'
+        def outside = dir('outside')
+        def home = dir('outside/home')
+        def build = dir('outside/home/deep/project')
+        env(outside)
+        def homeEnv = env(home)
+        def deepEnv = env(dir('outside/home/deep'))
+
+        expect: 'the chain reaches home (inclusive) and stops'
+        CHAIN.locate(build, [], true, home, IGNORE_MISSING) == [deepEnv, homeEnv]
+    }
+
+    def "walks unbounded when the build is outside the home directory"() {
+        given:
+        def home = dir('elsewhere-home')
+        def parent = dir('tree')
+        def build = dir('tree/project')
+        def parentEnv = env(parent)
+
+        expect: 'take(1) keeps the assertion immune to stray .env files above the temp dir'
+        CHAIN.locate(build, [], true, home, IGNORE_MISSING).take(1) == [parentEnv]
     }
 
     def "merge lets earlier maps win duplicate keys and unions the rest"() {
