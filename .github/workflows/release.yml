@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Publish to the Gradle Plugin Portal
+    runs-on: ubuntu-latest
+    # Environment-scoped secrets: only jobs declaring this environment can read the Portal
+    # credentials, and its protection rules (required reviewer, v* tags only) gate each run.
+    environment:
+      name: gradle-plugin-portal
+      url: https://plugins.gradle.org/plugin/com.moltenbits.envoy
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      # Fail before any build work: a version tag must either publish or fail visibly, never
+      # silently no-op.
+      - name: Check Plugin Portal credentials are configured
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+        run: |
+          if [[ -z "$GRADLE_PUBLISH_KEY" ]]; then
+            echo "::error::GRADLE_PUBLISH_KEY / GRADLE_PUBLISH_SECRET are not configured in the gradle-plugin-portal environment."
+            exit 1
+          fi
+
+      - id: jdk17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - id: jdk21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+
+      - name: Register the installed JDKs with Gradle
+        uses: ./.github/actions/register-jdks
+        with:
+          jdk17-path: ${{ steps.jdk17.outputs.path }}
+          jdk21-path: ${{ steps.jdk21.outputs.path }}
+
+      # The Portal rejects nothing here on its own: a tag that doesn't match build.gradle.kts
+      # would publish the wrong version under the right tag. A published version can never be
+      # replaced, so this is the last chance to catch it.
+      - name: Verify the tag matches the project version
+        run: |
+          project_version=$(./gradlew -q properties --property version | sed -n 's/^version: //p')
+          if [[ "$project_version" != "${{ steps.version.outputs.version }}" ]]; then
+            echo "::error::Tag version '${{ steps.version.outputs.version }}' does not match build.gradle.kts version '$project_version'."
+            exit 1
+          fi
+
+      - name: Run the full test suite
+        run: ./gradlew check
+
+      - name: Publish to the Gradle Plugin Portal
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+        run: ./gradlew publishPlugins
+
+      # After the publish, so a failed publish never leaves a release pointing at a version
+      # that isn't on the Portal.
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
