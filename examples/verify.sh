@@ -123,6 +123,22 @@ echo "$groovy_out"
 assert_literal "ENVOY_EXAMPLE_GREETING" "Hello from .env" "$(value_of ENVOY_EXAMPLE_GREETING "$groovy_out")"
 assert_resolved_secret "ENVOY_EXAMPLE_TOKEN" "$(value_of ENVOY_EXAMPLE_TOKEN "$groovy_out")"
 
+# --- vault-app: generic command resolver (vault://) ---------------------------------------------
+# Always hermetic via the bundled fake CLI — the hermetic/live axis above is about 1Password.
+# A distinct fixed value proves the custom resolver ran, not the built-in op:// one.
+log "vault-app: run (JavaExec, custom vault:// resolver)"
+vault_out="$(ENVOY_EXAMPLE_VAULT="$REPO_ROOT/examples/fake-vault" run_example vault-app run)"
+echo "$vault_out"
+assert_literal "ENVOY_EXAMPLE_GREETING" "Hello from .env" "$(value_of ENVOY_EXAMPLE_GREETING "$vault_out")"
+assert_literal "ENVOY_EXAMPLE_TOKEN" "example-vault-secret" "$(value_of ENVOY_EXAMPLE_TOKEN "$vault_out")"
+
+# --- secretspec-app: generic command resolver (secretspec://) -----------------------------------
+log "secretspec-app: run (JavaExec, custom secretspec:// resolver)"
+secretspec_out="$(ENVOY_EXAMPLE_SECRETSPEC="$REPO_ROOT/examples/fake-secretspec" run_example secretspec-app run)"
+echo "$secretspec_out"
+assert_literal "ENVOY_EXAMPLE_GREETING" "Hello from .env" "$(value_of ENVOY_EXAMPLE_GREETING "$secretspec_out")"
+assert_literal "ENVOY_EXAMPLE_TOKEN" "example-secretspec-secret" "$(value_of ENVOY_EXAMPLE_TOKEN "$secretspec_out")"
+
 log "Summary"
 if (( failures > 0 )); then
   printf '  \033[31m%d check(s) failed\033[0m\n' "$failures"
